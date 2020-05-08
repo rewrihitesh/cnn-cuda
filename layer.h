@@ -32,7 +32,7 @@ class Layer {
 	void setOutput(float *data);
 	void clear();
 	void bp_clear();
-	void copy_p(Layer source);
+	void copy_p(Layer *source);
 };
 
 
