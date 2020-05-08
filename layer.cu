@@ -125,11 +125,11 @@ __global__ void fp_preact_c1(float input[28][28], float preact[6][24][24], float
 	for (int n = N * pos / size; n < N * (pos+1) / size; ++n) {
 		printf("%d\n", n);
 		int idx = n;
-		const int i1 = ((idx /= 1	) % 5);
-		const int i2 = ((idx /= 5	) % 5);
-		const int i3 = ((idx /= 5	) % 6);
-		const int i4 = ((idx /= 6	) % 24);
-		const int i5 = ((idx /= 24	) % 24);
+		const int i1 = ((idx	) % 5);
+		const int i2 = ((idx 	) % 5);
+		const int i3 = ((idx 	) % 6);
+		const int i4 = ((idx ) % 24);
+		const int i5 = ((idx 	) % 24);
 
 		atomicAdd(&preact[i3][i4][i5], weight[i3][i1][i2] * input[i4 + i1][i5 + i2]);
 	}
