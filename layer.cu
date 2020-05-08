@@ -41,9 +41,9 @@ Layer::Layer(int M, int N, int O)
 	cudaMemcpy(weight, h_weight, sizeof(float) * M * N, cudaMemcpyHostToDevice);
 }
 
-void Layer::copy_p(Layer source){
-	this->bias   = source.bias;
-	this->weight = source.weight;
+void Layer::copy_p(Layer *source){
+	this->bias   = source->bias;
+	this->weight = source->weight;
 }
 // Destructor
 Layer::~Layer()
