@@ -17,7 +17,7 @@ static Layer ml_s1 = Layer(4*4, 1, 6*6*6);
 static Layer ml_f = Layer(6*6*6, 10, 10);
 
 static void learn();
-static unsigned int classify(double data[28][28]);
+// static unsigned int classify(double data[28][28]);
 static void test();
 static void forward_pass(double data[28][28],Layer l_input, Layer l_c1, Layer  l_s1, Layer  l_f);
 static void back_pass(Layer l_input, Layer l_c1, Layer  l_s1, Layer  l_f);
@@ -107,11 +107,11 @@ static void back_pass(Layer l_input, Layer l_c1, Layer l_s1, Layer l_f)
 // 	return ((double) (end - start)) / CLOCKS_PER_SEC;
 }
 
-__global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
+__global__ void minibatch(int base ,int N, float *err,Layer *ml_f, Layer *ml_s1, Layer *ml_c1, mnist_data *train_set){
 	const int pos = blockIdx.x * blockDim.x + threadIdx.x;
 	// check the index for compatibility
 	int idx = base*BATCH_SIZE + pos;
-	if(idx > train_cnt)
+	if(idx > N)
 		return;
 	
 	// create temporary layers for parallelised learning
@@ -122,9 +122,9 @@ __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 	Layer tl_c1 = Layer(5*5, 6, 24*24*6);
 	tl_c1.copy_p(ml_c1);
 	Layer tl_s1 = Layer(4*4, 1, 6*6*6);
-	t1_s1.copy_p(ml_s1);
+	tl_s1.copy_p(ml_s1);
 	Layer tl_f = Layer(6*6*6, 10, 10);
-	t1_f.copy_p(ml_f);
+	tl_f.copy_p(ml_f);
 	
 	float t_err; // temporary error for one sample
 	
@@ -136,13 +136,13 @@ __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 
 	makeError<<<10, 1>>>(tl_f.d_preact, tl_f.output, train_set[idx].label, 10);
 	cublasSnrm2(blas, 10, tl_f.d_preact, 1, &t_err);
-	atomicAdd(&err,t_err/N);
+	atomicAdd(err,t_err/N);
 
 	back_pass(tl_input, tl_c1, tl_s1, tl_f);
 	
-	atomicAdd(&ml_f.d_weight, (1/N) * tl_f.d_weight);
-	atomicAdd(&ml_c1.d_weight,(1/N) * tl_c1.d_weight);
-	atomicAdd(&ml_s1.d_weight,(1/N) * tl_s1.d_weight);
+	atomicAdd(ml_f->d_weight, (1/N) * tl_f.d_weight);
+	atomicAdd(ml_c1->d_weight,(1/N) * tl_c1.d_weight);
+	atomicAdd(ml_s1->d_weight,(1/N) * tl_s1.d_weight);
 }
 static void learn()
 {
@@ -172,7 +172,7 @@ static void learn()
 
 			start = clock();
 			
-			minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, ml_f, ml_s1, ml_c1);
+			minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, &ml_f, &ml_s1, &ml_c1, train_set);
 			
 			apply_grad<<<64, 64>>>(ml_f.weight, ml_f.d_weight, ml_f.M * ml_f.N);
 			apply_grad<<<64, 64>>>(ml_s1.weight, ml_s1.d_weight, ml_s1.M * ml_s1.N);
@@ -198,7 +198,7 @@ static void learn()
 
 
 // Returns label of given data (0-9)
-static unsigned int classify(double data[28][28])
+__global__ unsigned int classify(double data[28][28])
 {
 	float res[10];
 
@@ -206,7 +206,7 @@ static unsigned int classify(double data[28][28])
 
 	unsigned int max = 0;
 
-	cudaMemcpy(res, ml_f.output, sizeof(float) * 10, cudaMemcpyDeviceToHost);
+	res=ml_f.output;
 
 	for (int i = 1; i < 10; ++i) {
 		if (res[max] < res[i]) {
@@ -223,7 +223,7 @@ static void test()
 	int error = 0;
 
 	for (int i = 0; i < test_cnt; ++i) {
-		if (classify(test_set[i].data) != test_set[i].label) {
+		if (classify<<<1,1>>>(test_set[i].data) != test_set[i].label) {
 			++error;
 		}
 	}
