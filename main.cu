@@ -19,8 +19,8 @@ static Layer ml_f = Layer(6*6*6, 10, 10);
 static void learn();
 static unsigned int classify(double data[28][28]);
 static void test();
-static double forward_pass(double data[28][28]);
-static double back_pass();
+static void forward_pass(double data[28][28],Layer l_input, Layer l_c1, Layer  l_s1, Layer  l_f);
+static void back_pass(Layer l_input, Layer l_c1, Layer  l_s1, Layer  l_f);
 
 static inline void loaddata()
 {
@@ -48,7 +48,7 @@ int main(int argc, const  char **argv)
 }
 
 // Forward propagation of a single row in dataset
-static double forward_pass(double data[28][28],l_input, l_c1, l_s1, l_f)
+static void forward_pass(double data[28][28],Layer l_input, Layer l_c1, Layer  l_s1, Layer  l_f)
 {
 	float input[28][28];
 
@@ -85,7 +85,7 @@ static double forward_pass(double data[28][28],l_input, l_c1, l_s1, l_f)
 }
 
 // Back propagation to update weights
-static double back_pass(l_input, l_c1, l_s1, l_f)
+static void back_pass(Layer l_input, Layer l_c1, Layer l_s1, Layer l_f)
 {
 // 	clock_t start, end;
 
@@ -201,11 +201,11 @@ static unsigned int classify(double data[28][28])
 {
 	float res[10];
 
-	forward_pass(data);
+	forward_pass(data, ml_input, ml_c1, ml_s1, ml_f);
 
 	unsigned int max = 0;
 
-	cudaMemcpy(res, l_f.output, sizeof(float) * 10, cudaMemcpyDeviceToHost);
+	cudaMemcpy(res, ml_f.output, sizeof(float) * 10, cudaMemcpyDeviceToHost);
 
 	for (int i = 1; i < 10; ++i) {
 		if (res[max] < res[i]) {
