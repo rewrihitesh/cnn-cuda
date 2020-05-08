@@ -6,15 +6,15 @@
 #include <cuda.h>
 #include <cstdio>
 #include <time.h>
-
+#define BATCH_SIZE 256
 static mnist_data *train_set, *test_set;
 static unsigned int train_cnt, test_cnt;
 
 // Define layers of CNN
-static Layer l_input = Layer(0, 0, 28*28);
-static Layer l_c1 = Layer(5*5, 6, 24*24*6);
-static Layer l_s1 = Layer(4*4, 1, 6*6*6);
-static Layer l_f = Layer(6*6*6, 10, 10);
+static Layer ml_input = Layer(0, 0, 28*28);
+static Layer ml_c1 = Layer(5*5, 6, 24*24*6);
+static Layer ml_s1 = Layer(4*4, 1, 6*6*6);
+static Layer ml_f = Layer(6*6*6, 10, 10);
 
 static void learn();
 static unsigned int classify(double data[28][28]);
@@ -48,7 +48,7 @@ int main(int argc, const  char **argv)
 }
 
 // Forward propagation of a single row in dataset
-static double forward_pass(double data[28][28])
+static double forward_pass(double data[28][28],l_input, l_c1, l_s1, l_f)
 {
 	float input[28][28];
 
@@ -80,16 +80,16 @@ static double forward_pass(double data[28][28])
 	fp_bias_f<<<64, 64>>>(l_f.preact, l_f.bias);
 	apply_step_function<<<64, 64>>>(l_f.preact, l_f.output, l_f.O);
 	
-	end = clock();
-	return ((double) (end - start)) / CLOCKS_PER_SEC;
+// 	end = clock();
+// 	return ((double) (end - start)) / CLOCKS_PER_SEC;
 }
 
 // Back propagation to update weights
-static double back_pass()
+static double back_pass(l_input, l_c1, l_s1, l_f)
 {
-	clock_t start, end;
+// 	clock_t start, end;
 
-	start = clock();
+// 	start = clock();
 
 	bp_weight_f<<<64, 64>>>((float (*)[6][6][6])l_f.d_weight, l_f.d_preact, (float (*)[6][6])l_s1.output);
 	bp_bias_f<<<64, 64>>>(l_f.bias, l_f.d_preact);
@@ -103,37 +103,46 @@ static double back_pass()
 	bp_preact_c1<<<64, 64>>>((float (*)[24][24])l_c1.d_preact, (float (*)[24][24])l_c1.d_output, (float (*)[24][24])l_c1.preact);
 	bp_weight_c1<<<64, 64>>>((float (*)[5][5])l_c1.d_weight, (float (*)[24][24])l_c1.d_preact, (float (*)[28])l_input.output);
 	bp_bias_c1<<<64, 64>>>(l_c1.bias, (float (*)[24][24])l_c1.d_preact);
-
-
-	apply_grad<<<64, 64>>>(l_f.weight, l_f.d_weight, l_f.M * l_f.N);
-	apply_grad<<<64, 64>>>(l_s1.weight, l_s1.d_weight, l_s1.M * l_s1.N);
-	apply_grad<<<64, 64>>>(l_c1.weight, l_c1.d_weight, l_c1.M * l_c1.N);
-
-	end = clock();
-	return ((double) (end - start)) / CLOCKS_PER_SEC;
+// 	end = clock();
+// 	return ((double) (end - start)) / CLOCKS_PER_SEC;
 }
 
-// Unfold the input layer
-// static void unfold_input(double input[28][28], double unfolded[24*24][5*5])
-// {
-// 	int a = 0;
-// 	(void)unfold_input;
+__global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
+	const int pos = blockIdx.x * blockDim.x + threadIdx.x;
+	// check the index for compatibility
+	idx = base*BATCH_SIZE + pos
+	if(idx > train_cnt)
+		return;
+	
+	// create temporary layers for parallelised learning
+	cublasHandle_t blas;
+	cublasCreate(&blas);
+	
+	Layer tl_input = Layer(0, 0, 28*28);
+	Layer tl_c1 = Layer(5*5, 6, 24*24*6);
+	Layer tl_s1 = Layer(4*4, 1, 6*6*6);
+	Layer tl_f = Layer(6*6*6, 10, 10);
+	
+	float t_err; // temporary error for one sample
+	
+	forward_pass(train_set[idx].data, tl_input, tl_c1, tl_s1, tl_f);
 
-// 	for (int i = 0; i < 2; ++i)
-// 		for (int j = 0; j < 2; ++j) {
-// 			int b = 0;
-// 			for (int x = i; x < i + 2; ++x)
-// 				for (int y = j; y < j+2; ++y)
-// 					unfolded[a][b++] = input[x][y];
-// 			a++;
-// 		}
-// }
+	tl_f.bp_clear();
+	tl_s1.bp_clear();
+	tl_c1.bp_clear();
 
+	makeError<<<10, 1>>>(tl_f.d_preact, tl_f.output, train_set[idx].label, 10);
+	cublasSnrm2(blas, 10, tl_f.d_preact, 1, &t_err);
+	atomicAdd(&err,t_err);
+
+	back_pass(tl_input, tl_c1, tl_s1, tl_f);
+	
+	atomicAdd(&ml_f.d_weight, (1/N) * ml_f.d_weight);
+	atomicAdd(&ml_c1.d_weight,(1/N) * ml_c1.d_weight);
+	atomicAdd(&ml_s1.d_weight,(1/N) * ml_s1.d_weight);
+}
 static void learn()
 {
-	static cublasHandle_t blas;
-	cublasCreate(&blas);
-
 	float err;
 	int iter = 50;
 	
@@ -141,24 +150,28 @@ static void learn()
 
 	fprintf(stdout ,"Learning\n");
 
-	while (iter < 0 || iter-- > 0) {
+	while (iter-- != 0) {
 		err = 0.0f;
 
-		for (int i = 0; i < train_cnt; ++i) {
+		for (int i = 0; i < (int)train_cnt/BATCH_SIZE+1 ; ++i) {
 			float tmp_err;
-
-			time_taken += forward_pass(train_set[i].data);
-
-			l_f.bp_clear();
-			l_s1.bp_clear();
-			l_c1.bp_clear();
-
-			// Euclid distance of train_set[i]
-			makeError<<<10, 1>>>(l_f.d_preact, l_f.output, train_set[i].label, 10);
-			cublasSnrm2(blas, 10, l_f.d_preact, 1, &tmp_err);
+			int rem = train_cnt - i*BATCH_SIZE;
+			if(rem < train_cnt)
+				N = rem;
+			else
+				N = BATCH_SIZE;
+			
+			ml_f.bp_clear();
+			ml_s1.bp_clear();
+			ml_c1.bp_clear();
+			
+			fp_minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, ml_f, ml_s1, ml_c1);
+			
+			apply_grad<<<64, 64>>>(ml_f.weight, ml_f.d_weight, ml_f.M * ml_f.N);
+			apply_grad<<<64, 64>>>(ml_s1.weight, ml_s1.d_weight, ml_s1.M * ml_s1.N);
+			apply_grad<<<64, 64>>>(ml_c1.weight, ml_c1.d_weight, ml_c1.M * ml_c1.N);
+			
 			err += tmp_err;
-
-			time_taken += back_pass();
 		}
 
 		err /= train_cnt;
