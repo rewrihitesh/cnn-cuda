@@ -141,7 +141,7 @@ static void learn()
 
 	fprintf(stdout ,"Learning\n");
 
-	while (iter < 0 || iter-- > 0) {
+	while (iter-- != 0) {
 		err = 0.0f;
 
 		for (int i = 0; i < train_cnt; ++i) {
