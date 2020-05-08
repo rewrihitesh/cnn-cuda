@@ -120,8 +120,11 @@ __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 	
 	Layer tl_input = Layer(0, 0, 28*28);
 	Layer tl_c1 = Layer(5*5, 6, 24*24*6);
+	tl_c1.copy_p(ml_c1)
 	Layer tl_s1 = Layer(4*4, 1, 6*6*6);
+	t1_s1.copy_p(ml_s1)
 	Layer tl_f = Layer(6*6*6, 10, 10);
+	t1_f.copy_p(ml_f)
 	
 	float t_err; // temporary error for one sample
 	
@@ -133,13 +136,13 @@ __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 
 	makeError<<<10, 1>>>(tl_f.d_preact, tl_f.output, train_set[idx].label, 10);
 	cublasSnrm2(blas, 10, tl_f.d_preact, 1, &t_err);
-	atomicAdd(&err,t_err);
+	atomicAdd(&err,t_err/N);
 
 	back_pass(tl_input, tl_c1, tl_s1, tl_f);
 	
-	atomicAdd(&ml_f.d_weight, (1/N) * ml_f.d_weight);
-	atomicAdd(&ml_c1.d_weight,(1/N) * ml_c1.d_weight);
-	atomicAdd(&ml_s1.d_weight,(1/N) * ml_s1.d_weight);
+	atomicAdd(&ml_f.d_weight, (1/N) * tl_f.d_weight);
+	atomicAdd(&ml_c1.d_weight,(1/N) * tl_c1.d_weight);
+	atomicAdd(&ml_s1.d_weight,(1/N) * tl_s1.d_weight);
 }
 static void learn()
 {
@@ -165,13 +168,18 @@ static void learn()
 			ml_s1.bp_clear();
 			ml_c1.bp_clear();
 			
-			fp_minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, ml_f, ml_s1, ml_c1);
+			clock_t start, end;
+			start = clock();
+			
+			minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, ml_f, ml_s1, ml_c1);
 			
 			apply_grad<<<64, 64>>>(ml_f.weight, ml_f.d_weight, ml_f.M * ml_f.N);
 			apply_grad<<<64, 64>>>(ml_s1.weight, ml_s1.d_weight, ml_s1.M * ml_s1.N);
 			apply_grad<<<64, 64>>>(ml_c1.weight, ml_c1.d_weight, ml_c1.M * ml_c1.N);
 			
 			err += tmp_err;
+			end = clock();
+			time_taken+ = ((double) (end - start)) / CLOCKS_PER_SEC;
 		}
 
 		err /= train_cnt;
