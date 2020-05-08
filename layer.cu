@@ -1,4 +1,5 @@
 #include "layer.h"
+#include <stdio.h>
 
 // Constructor
 Layer::Layer(int M, int N, int O)
@@ -116,6 +117,8 @@ __global__ void fp_preact_c1(float input[28][28], float preact[6][24][24], float
 {
 	const int pos = blockIdx.x * blockDim.x + threadIdx.x;
 	const int size = blockDim.x * gridDim.x;
+	
+	printf("%d\n", size);
 
 	const int N = 5*5*6*24*24;
 
