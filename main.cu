@@ -63,8 +63,8 @@ static void forward_pass(double data[28][28],Layer l_input, Layer l_c1, Layer  l
 	l_s1.clear();
 	l_f.clear();
 
-	clock_t start, end;
-	start = clock();
+// 	clock_t start, end;
+// 	start = clock();
 
 	l_input.setOutput((float *)input);
 	
@@ -110,7 +110,7 @@ static void back_pass(Layer l_input, Layer l_c1, Layer l_s1, Layer l_f)
 __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 	const int pos = blockIdx.x * blockDim.x + threadIdx.x;
 	// check the index for compatibility
-	idx = base*BATCH_SIZE + pos
+	int idx = base*BATCH_SIZE + pos;
 	if(idx > train_cnt)
 		return;
 	
@@ -120,11 +120,11 @@ __global__ void minibatch(int base ,int N, float *err, ml_f, ml_s1, ml_c1){
 	
 	Layer tl_input = Layer(0, 0, 28*28);
 	Layer tl_c1 = Layer(5*5, 6, 24*24*6);
-	tl_c1.copy_p(ml_c1)
+	tl_c1.copy_p(ml_c1);
 	Layer tl_s1 = Layer(4*4, 1, 6*6*6);
-	t1_s1.copy_p(ml_s1)
+	t1_s1.copy_p(ml_s1);
 	Layer tl_f = Layer(6*6*6, 10, 10);
-	t1_f.copy_p(ml_f)
+	t1_f.copy_p(ml_f);
 	
 	float t_err; // temporary error for one sample
 	
@@ -148,6 +148,8 @@ static void learn()
 {
 	float err;
 	int iter = 50;
+	int N;
+	clock_t start, end;
 	
 	double time_taken = 0.0;
 
@@ -157,7 +159,7 @@ static void learn()
 		err = 0.0f;
 
 		for (int i = 0; i < (int)train_cnt/BATCH_SIZE+1 ; ++i) {
-			float tmp_err;
+			float tmp_err = 0.0f;
 			int rem = train_cnt - i*BATCH_SIZE;
 			if(rem < train_cnt)
 				N = rem;
@@ -167,8 +169,7 @@ static void learn()
 			ml_f.bp_clear();
 			ml_s1.bp_clear();
 			ml_c1.bp_clear();
-			
-			clock_t start, end;
+
 			start = clock();
 			
 			minibatch <<<BATCH_SIZE, 1>>>(i, N, tmp_err, ml_f, ml_s1, ml_c1);
