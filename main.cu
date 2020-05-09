@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <time.h>
 
+#define max_block 64
+#definie max_thread 64
+
 static mnist_data *train_set, *test_set;
 static unsigned int train_cnt, test_cnt;
 
@@ -91,23 +94,23 @@ static double back_pass()
 
 	start = clock();
 
-	bp_weight_f<<<64, 64>>>((float (*)[6][6][6])l_f.d_weight, l_f.d_preact, (float (*)[6][6])l_s1.output);
-	bp_bias_f<<<64, 64>>>(l_f.bias, l_f.d_preact);
+	bp_weight_f<<<max_block,max_thread>>>((float (*)[6][6][6])l_f.d_weight, l_f.d_preact, (float (*)[6][6])l_s1.output);
+	bp_bias_f<<<max_block,max_thread>>>(l_f.bias, l_f.d_preact);
 
-	bp_output_s1<<<64, 64>>>((float (*)[6][6])l_s1.d_output, (float (*)[6][6][6])l_f.weight, l_f.d_preact);
-	bp_preact_s1<<<64, 64>>>((float (*)[6][6])l_s1.d_preact, (float (*)[6][6])l_s1.d_output, (float (*)[6][6])l_s1.preact);
-	bp_weight_s1<<<64, 64>>>((float (*)[4][4])l_s1.d_weight, (float (*)[6][6])l_s1.d_preact, (float (*)[24][24])l_c1.output);
-	bp_bias_s1<<<64, 64>>>(l_s1.bias, (float (*)[6][6])l_s1.d_preact);
+	bp_output_s1<<<max_block,max_thread>>>((float (*)[6][6])l_s1.d_output, (float (*)[6][6][6])l_f.weight, l_f.d_preact);
+	bp_preact_s1<<<max_block,max_thread>>>((float (*)[6][6])l_s1.d_preact, (float (*)[6][6])l_s1.d_output, (float (*)[6][6])l_s1.preact);
+	bp_weight_s1<<<max_block,max_thread>>>((float (*)[4][4])l_s1.d_weight, (float (*)[6][6])l_s1.d_preact, (float (*)[24][24])l_c1.output);
+	bp_bias_s1<<<max_block,max_thread>>>(l_s1.bias, (float (*)[6][6])l_s1.d_preact);
 
-	bp_output_c1<<<64, 64>>>((float (*)[24][24])l_c1.d_output, (float (*)[4][4])l_s1.weight, (float (*)[6][6])l_s1.d_preact);
-	bp_preact_c1<<<64, 64>>>((float (*)[24][24])l_c1.d_preact, (float (*)[24][24])l_c1.d_output, (float (*)[24][24])l_c1.preact);
-	bp_weight_c1<<<64, 64>>>((float (*)[5][5])l_c1.d_weight, (float (*)[24][24])l_c1.d_preact, (float (*)[28])l_input.output);
-	bp_bias_c1<<<64, 64>>>(l_c1.bias, (float (*)[24][24])l_c1.d_preact);
+	bp_output_c1<<<max_block,max_thread>>>((float (*)[24][24])l_c1.d_output, (float (*)[4][4])l_s1.weight, (float (*)[6][6])l_s1.d_preact);
+	bp_preact_c1<<<max_block,max_thread>>>((float (*)[24][24])l_c1.d_preact, (float (*)[24][24])l_c1.d_output, (float (*)[24][24])l_c1.preact);
+	bp_weight_c1<<<max_block,max_thread>>>((float (*)[5][5])l_c1.d_weight, (float (*)[24][24])l_c1.d_preact, (float (*)[28])l_input.output);
+	bp_bias_c1<<<max_block,max_thread>>>(l_c1.bias, (float (*)[24][24])l_c1.d_preact);
 
 
-	apply_grad<<<64, 64>>>(l_f.weight, l_f.d_weight, l_f.M * l_f.N);
-	apply_grad<<<64, 64>>>(l_s1.weight, l_s1.d_weight, l_s1.M * l_s1.N);
-	apply_grad<<<64, 64>>>(l_c1.weight, l_c1.d_weight, l_c1.M * l_c1.N);
+	apply_grad<<<max_block,max_thread>>>(l_f.weight, l_f.d_weight, l_f.M * l_f.N);
+	apply_grad<<<max_block,max_thread>>>(l_s1.weight, l_s1.d_weight, l_s1.M * l_s1.N);
+	apply_grad<<<max_block,max_thread>>>(l_c1.weight, l_c1.d_weight, l_c1.M * l_c1.N);
 
 	end = clock();
 	return ((double) (end - start)) / CLOCKS_PER_SEC;
