@@ -117,12 +117,13 @@ __global__ void fp_preact_c1(float input[28][28], float preact[6][24][24], float
 {
 	const int pos = blockIdx.x * blockDim.x + threadIdx.x;
 	const int size = blockDim.x * gridDim.x;
-	
+	if(pos==0)
 	printf("fp_preact_c1:: Thread id:: %d\n", pos);
 
 	const int N = 5*5*6*24*24;
 
 	for (int n = N * pos / size; n < N * (pos+1) / size; ++n) {
+		if(pos==0)
 		printf("Thread id:: %d inside for loop :: %d\n", pos,n);
 		int idx = n;
 		const int i1 = ((idx/1	) % 5);
