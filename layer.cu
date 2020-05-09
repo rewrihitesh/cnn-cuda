@@ -133,7 +133,7 @@ __global__ void fp_preact_c1(float input[28][28], float preact[6][24][24], float
 // 		if(pos==0 || pos==1){
 // 			printf("Thread id:: %d inside for loop :: %d\n", pos,n);
 // 			printf("i1:: %d, i2:: %d, i3:: %d, i4:: %d, i5:: %d \n", i1,i2,i3,i4,i5);
-		}
+// 		}
 		atomicAdd(&preact[i3][i4][i5], weight[i3][i1][i2] * input[i4 + i1][i5 + i2]);
 	}
 }
