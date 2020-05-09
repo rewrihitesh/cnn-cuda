@@ -7,8 +7,8 @@
 #include <cstdio>
 #include <time.h>
 
-#define max_block 64
-#define max_thread 64
+#define max_block 32
+#define max_thread 32
 
 static mnist_data *train_set, *test_set;
 static unsigned int train_cnt, test_cnt;
